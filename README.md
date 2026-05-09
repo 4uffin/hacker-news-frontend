@@ -33,3 +33,7 @@ Then open `http://localhost:8000` in your browser.
 ## Data
 
 All data is fetched live from the [Hacker News Firebase API](https://github.com/HackerNews/API). No backend, no dependencies, no build step.
+
+## License
+
+This project is under the [MIT License](LICENSE.txt).
