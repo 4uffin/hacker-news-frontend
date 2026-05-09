@@ -4,7 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Minimal Hacker News</title>
+  <title>Hacker News Frontend</title>
+  <link rel="icon" type="image/x-icon" href="/Images/IMG_0002.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     html {
@@ -23,6 +24,36 @@
       padding: 0;
     }
 
+    /* ── Skip link ── */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 0;
+      padding: 8px 16px;
+      background: var(--hn-primary-dark);
+      color: #fff;
+      font-weight: bold;
+      font-size: 14px;
+      z-index: 10000;
+      border-radius: 0 0 4px 0;
+      text-decoration: none;
+    }
+
+    .skip-link:focus {
+      top: 0;
+    }
+
+    /* ── Focus ring ── */
+    :focus-visible {
+      outline: 3px solid var(--hn-primary-dark);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+
+    :focus:not(:focus-visible) {
+      outline: none;
+    }
+
     .story-item {
       display: grid;
       grid-template-columns: 20px 20px 1fr;
@@ -36,18 +67,28 @@
       background-color: #f0f0f0;
     }
 
-    .upvote-arrow {
+    /* Upvote arrow — now a <button> for keyboard/SR access */
+    .upvote-btn {
       cursor: pointer;
+      background: none;
+      border: none;
+      padding: 4px 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .upvote-arrow {
       width: 0;
       height: 0;
       border-left: 5px solid transparent;
       border-right: 5px solid transparent;
       border-bottom: 8px solid #999;
-      margin-top: 5px;
       transition: border-bottom-color 0.1s;
     }
 
-    .upvote-arrow:hover {
+    .upvote-btn:hover .upvote-arrow,
+    .upvote-btn:focus-visible .upvote-arrow {
       border-bottom-color: var(--hn-primary-dark);
     }
 
@@ -96,19 +137,39 @@
       display: inline-block;
       animation: spin 0.7s linear infinite;
     }
+
+    /* Visually hidden but readable by screen readers */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 </head>
 
 <body class="min-h-screen">
 
-  <header id="top" style="background-color:var(--hn-primary-light);" class="border-b border-blue-300">
+  <!-- Skip navigation link: visible on focus for keyboard users -->
+  <a href="#stories-list" class="skip-link">Skip to stories</a>
+
+  <header id="top" style="background-color:var(--hn-primary-light);" class="border-b border-blue-300" role="banner">
     <div class="w-full mx-auto flex flex-wrap items-center py-2 px-2 sm:px-4 gap-x-4 gap-y-2">
 
       <div class="flex items-center flex-shrink-0">
-        <a href="https://4uffin.github.io/hacker-news-frontend/" class="text-lg font-bold text-gray-800 px-2 py-0.5 rounded-sm bg-white">HN</a>
-        <a href="https://4uffin.github.io/hacker-news-frontend/"><span class="ml-2 font-bold text-gray-800 hidden lg:inline">Hacker News</span></a>
-        <nav class="ml-4 space-x-3 text-sm text-gray-700" id="main-nav">
-          <a href="#" data-type="top" class="nav-link hover:text-blue-600 font-semibold">Top</a>
+        <a href="https://4uffin.github.io/hacker-news-frontend/" class="text-lg font-bold text-gray-800 px-2 py-0.5 rounded-sm bg-white" aria-label="Hacker News home">HN</a>
+        <!-- Decorative duplicate — hidden from SR to avoid double-announcing -->
+        <a href="https://4uffin.github.io/hacker-news-frontend/" aria-hidden="true" tabindex="-1">
+          <span class="ml-2 font-bold text-gray-800 hidden lg:inline">Hacker News</span>
+        </a>
+
+        <nav class="ml-4 space-x-3 text-sm text-gray-700" id="main-nav" aria-label="Story categories">
+          <a href="#" data-type="top" class="nav-link hover:text-blue-600 font-semibold" aria-current="page">Top</a>
           <a href="#" data-type="new" class="nav-link hover:text-blue-600">New</a>
           <a href="#" data-type="show" class="nav-link hover:text-blue-600">Show</a>
           <a href="#" data-type="ask" class="nav-link hover:text-blue-600">Ask</a>
@@ -116,30 +177,38 @@
       </div>
 
       <div class="flex-shrink-0">
-        <input type="text" id="search-input" placeholder="Search stories..." class="px-2 py-1 text-xs border border-blue-300 rounded focus:outline-none focus:border-blue-500">
+        <label for="search-input" class="sr-only">Search stories</label>
+        <input type="search" id="search-input" placeholder="Search stories…" autocomplete="off" class="px-2 py-1 text-xs border border-blue-300 rounded focus:outline-none focus:border-blue-500">
       </div>
 
       <div class="ml-auto flex items-center whitespace-nowrap gap-x-3 text-sm text-gray-500 flex-shrink-0">
-        <span id="update-timestamp" class="text-[10px] uppercase font-bold text-blue-800"></span>
-        <button id="refresh-button" class="hover:text-blue-600 font-medium text-gray-500 disabled:opacity-40 disabled:cursor-not-allowed">Refresh</button>
-        <a href="https://news.ycombinator.com/submit" target="_blank" rel="noopener noreferrer" class="hover:text-blue-600 font-medium">Submit</a>
+        <!-- aria-live: screen readers quietly announce updates without interrupting -->
+        <span id="update-timestamp" class="text-[10px] uppercase font-bold text-blue-800" aria-live="polite" aria-atomic="true"></span>
+        <button id="refresh-button" class="hover:text-blue-600 font-medium text-gray-500 disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Refresh stories list">Refresh</button>
+        <a href="https://news.ycombinator.com/submit" target="_blank" rel="noopener noreferrer" class="hover:text-blue-600 font-medium" aria-label="Submit a story to Hacker News (opens in new tab)">Submit</a>
       </div>
     </div>
   </header>
 
-  <main class="w-full mx-auto">
-    <div id="loading-indicator" class="text-center p-8 text-lg font-semibold text-blue-600">
-      Loading stories...
+  <main id="main-content" class="w-full mx-auto" role="main">
+
+    <!-- role="status" + aria-live: announced to SR when text changes -->
+    <div id="loading-indicator" class="text-center p-8 text-lg font-semibold text-blue-600" role="status" aria-live="polite" aria-atomic="true">
+      Loading stories…
     </div>
 
-    <div id="stories-container" class="bg-white border-b border-solid border-[#c0c0c0] hidden">
-    </div>
+    <!-- ol gives screen readers item count + position ("item 3 of 30") -->
+    <ol id="stories-list" aria-label="Stories" class="bg-white border-b border-solid border-[#c0c0c0] hidden" style="list-style:none;margin:0;padding:0;">
+    </ol>
 
-    <div id="pagination-controls" class="bottom-nav hidden">
-      <a href="#" id="more-button">More</a>
-      <span id="nav-separator" class="mx-2 text-gray-400">|</span>
-      <a href="#top" id="back-to-top">Back to Top</a>
-    </div>
+    <!-- Politely announces search result count to screen readers -->
+    <div id="search-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+    <nav class="bottom-nav hidden" id="pagination-controls" aria-label="Pagination">
+      <a href="#" id="more-button">More stories</a>
+      <span aria-hidden="true" id="nav-separator" class="mx-2 text-gray-400">|</span>
+      <a href="#top" id="back-to-top">Back to top</a>
+    </nav>
   </main>
 
   <script type="module">
@@ -149,7 +218,7 @@
     const SHOW_STORIES_URL = 'https://hacker-news.firebaseio.com/v0/showstories.json?print=pretty';
     const ASK_STORIES_URL = 'https://hacker-news.firebaseio.com/v0/askstories.json?print=pretty';
     const ITEM_URL = (id) => `https://hacker-news.firebaseio.com/v0/item/${id}.json?print=pretty`;
-    const storiesContainer = document.getElementById('stories-container');
+    const storiesContainer = document.getElementById('stories-list');
     const loadingIndicator = document.getElementById('loading-indicator');
     const paginationControls = document.getElementById('pagination-controls');
     const moreButton = document.getElementById('more-button');
@@ -157,6 +226,7 @@
     const searchInput = document.getElementById('search-input');
     const updateTimestamp = document.getElementById('update-timestamp');
     const refreshButton = document.getElementById('refresh-button');
+    const searchStatus = document.getElementById('search-status');
     let currentStoryType = 'top';
     let currentPage = 0;
     let cachedIds = [];
@@ -167,26 +237,35 @@
       const now = Date.now() / 1000;
       const seconds = Math.floor(now - timestamp);
       let interval = seconds / 31536000;
-      if (interval > 1) return Math.floor(interval) + " years ago";
+      if (interval > 1) return Math.floor(interval) + ' years ago';
       interval = seconds / 2592000;
-      if (interval > 1) return Math.floor(interval) + " months ago";
+      if (interval > 1) return Math.floor(interval) + ' months ago';
       interval = seconds / 86400;
-      if (interval > 1) return Math.floor(interval) + " days ago";
+      if (interval > 1) return Math.floor(interval) + ' days ago';
       interval = seconds / 3600;
-      if (interval > 1) return Math.floor(interval) + " hours ago";
+      if (interval > 1) return Math.floor(interval) + ' hours ago';
       interval = seconds / 60;
-      if (interval > 1) return Math.floor(interval) + " minutes ago";
-      return Math.floor(seconds) + " seconds ago";
+      if (interval > 1) return Math.floor(interval) + ' minutes ago';
+      return Math.floor(seconds) + ' seconds ago';
     }
 
     function getDomainLink(url) {
       if (!url) return '';
       try {
         const domain = new URL(url).hostname.replace('www.', '');
-        return `<span class="text-xs text-gray-500 ml-1">(<a href="${url}" target="_blank" rel="noopener noreferrer" class="hover:underline">${domain}</a>)</span>`;
+        // aria-hidden: domain link is decorative; the title link already covers navigation
+        return `<span class="text-xs text-gray-500 ml-1" aria-hidden="true">(<a href="${url}" target="_blank" rel="noopener noreferrer" class="hover:underline" tabindex="-1">${domain}</a>)</span>`;
       } catch (e) {
         return '';
       }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     }
 
     function updateLastFetchedTime() {
@@ -197,8 +276,9 @@
     function setRefreshState(loading) {
       isFetching = loading;
       refreshButton.disabled = loading;
+      refreshButton.setAttribute('aria-busy', String(loading));
       refreshButton.innerHTML = loading ?
-        '<span class="spin">↺</span> Refreshing' :
+        '<span class="spin" aria-hidden="true">↺</span> Refreshing\u2026' :
         'Refresh';
     }
     async function fetchData(url, retries = 3) {
@@ -209,8 +289,7 @@
           return await response.json();
         } catch (error) {
           if (i === retries - 1) throw error;
-          const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000 + Math.random() * 1000));
         }
       }
     }
@@ -218,43 +297,75 @@
     function renderStories(storiesList) {
       storiesContainer.innerHTML = '';
       storiesList.forEach((story, index) => {
-        if (story && !story.deleted && !story.dead) {
-          const storyLink = story.url || `https://news.ycombinator.com/item?id=${story.id}`;
-          const commentsLink = `https://news.ycombinator.com/item?id=${story.id}`;
-          const userLink = `https://news.ycombinator.com/user?id=${story.by}`;
-          const storyItem = document.createElement('div');
-          storyItem.className = 'story-item story-item-wrapper';
-          storyItem.innerHTML = `
-            <div class="text-gray-600 font-medium text-sm text-right pr-1">${index + 1}.</div>
-            <div class="flex justify-center items-center"><div class="upvote-arrow"></div></div>
-            <div class="flex flex-col">
-              <div class="text-gray-800 leading-tight">
-                <a href="${storyLink}" target="_blank" rel="noopener noreferrer" class="text-base text-black hover:underline font-medium">
-                  ${story.title}
-                </a>
-                ${getDomainLink(story.url)}
-              </div>
-              <div class="text-xs text-gray-600 mt-0.5">
-                <span class="text-blue-600 font-semibold">${story.score || 0} points</span>
-                by <a href="${userLink}" target="_blank" rel="noopener noreferrer" class="hover:underline cursor-pointer">${story.by}</a>
-                ${story.time ? timeAgo(story.time) : 'unknown time'} |
-                <a href="${commentsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline text-gray-700 font-medium">
-                  ${story.descendants || 0} comments
-                </a>
-              </div>
+        if (!story || story.deleted || story.dead) return;
+        const storyLink = story.url || `https://news.ycombinator.com/item?id=${story.id}`;
+        const commentsLink = `https://news.ycombinator.com/item?id=${story.id}`;
+        const userLink = `https://news.ycombinator.com/user?id=${story.by}`;
+        const when = story.time ? timeAgo(story.time) : 'unknown time';
+        const score = story.score || 0;
+        const comments = story.descendants || 0;
+        const titleAttr = escapeHtml(`${story.title} | ${score} pts by ${story.by} | ${comments} comments | ${when}`);
+        const li = document.createElement('li');
+        li.className = 'story-item story-item-wrapper';
+        li.innerHTML = `
+          <div class="text-gray-600 font-medium text-sm text-right pr-1" aria-hidden="true">${index + 1}.</div>
+
+          <div class="flex justify-center items-center">
+            <button class="upvote-btn"
+                    aria-label="Upvote: ${escapeHtml(story.title)}"
+                    aria-pressed="false">
+              <span class="upvote-arrow" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <div class="flex flex-col">
+            <div class="text-gray-800 leading-tight">
+              <a href="${storyLink}"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="text-base text-black hover:underline font-medium"
+                 title="${titleAttr}"
+                 aria-label="${escapeHtml(story.title)} (opens in new tab)">
+                ${story.title}
+              </a>
+              ${getDomainLink(story.url)}
             </div>
-          `;
-          storiesContainer.appendChild(storyItem);
-        }
+            <div class="text-xs text-gray-600 mt-0.5" aria-hidden="true">
+              <span class="text-blue-600 font-semibold">${score} points</span>
+              by <a href="${userLink}" target="_blank" rel="noopener noreferrer"
+                    class="hover:underline cursor-pointer">${story.by}</a>
+              ${when} |
+              <a href="${commentsLink}" target="_blank" rel="noopener noreferrer"
+                 class="hover:underline text-gray-700 font-medium">${comments} comments</a>
+            </div>
+            <!-- Screen-reader-only summary; the visual row above is aria-hidden -->
+            <span class="sr-only">
+              ${score} points by ${escapeHtml(story.by)}, posted ${when}, ${comments} comments.
+            </span>
+          </div>
+        `;
+        // Upvote toggle with aria-pressed state
+        li.querySelector('.upvote-btn').addEventListener('click', function() {
+          const pressed = this.getAttribute('aria-pressed') === 'true';
+          const next = !pressed;
+          this.setAttribute('aria-pressed', String(next));
+          this.querySelector('.upvote-arrow').style.borderBottomColor = next ? 'var(--hn-primary-dark)' : '#999';
+          this.setAttribute('aria-label', (next ? 'Remove upvote: ' : 'Upvote: ') + story.title);
+        });
+        storiesContainer.appendChild(li);
       });
     }
 
     function setActiveNav(type) {
       document.querySelectorAll('.nav-link').forEach(link => {
-        if (link.dataset.type === type) {
-          link.classList.add('font-semibold', 'text-blue-600');
+        const isActive = link.dataset.type === type;
+        link.classList.toggle('font-semibold', isActive);
+        link.classList.toggle('text-blue-600', isActive);
+        // aria-current="page" tells screen readers which section is active
+        if (isActive) {
+          link.setAttribute('aria-current', 'page');
         } else {
-          link.classList.remove('font-semibold', 'text-blue-600');
+          link.removeAttribute('aria-current');
         }
       });
     }
@@ -281,8 +392,7 @@
             break;
         }
         cachedIds = await fetchData(url);
-        const idsToFetch = cachedIds.slice(0, countToRefresh);
-        const stories = await Promise.all(idsToFetch.map(id => fetchData(ITEM_URL(id))));
+        const stories = await Promise.all(cachedIds.slice(0, countToRefresh).map(id => fetchData(ITEM_URL(id))));
         loadedStories = stories.filter(s => s && !s.deleted && !s.dead);
         const displayList = activeQuery ?
           loadedStories.filter(s => s.title.toLowerCase().includes(activeQuery) || s.by.toLowerCase().includes(activeQuery)) :
@@ -310,11 +420,13 @@
         storiesContainer.innerHTML = '';
         storiesContainer.classList.add('hidden');
         paginationControls.classList.add('hidden');
-        loadingIndicator.textContent = `Loading ${type} stories...`;
+        loadingIndicator.textContent = `Loading ${type} stories\u2026`;
+        loadingIndicator.removeAttribute('role');
         loadingIndicator.classList.remove('hidden', 'text-red-600');
         loadingIndicator.classList.add('text-blue-600');
       } else {
-        moreButton.textContent = 'Loading...';
+        moreButton.textContent = 'Loading\u2026';
+        moreButton.setAttribute('aria-disabled', 'true');
       }
       currentStoryType = type;
       setActiveNav(type);
@@ -349,19 +461,26 @@
         const hasMore = cachedIds.length > (start + STORIES_PER_PAGE);
         moreButton.style.display = hasMore ? 'inline' : 'none';
         navSeparator.style.display = hasMore ? 'inline' : 'none';
-        moreButton.textContent = 'More';
+        moreButton.textContent = 'More stories';
+        moreButton.removeAttribute('aria-disabled');
       } catch (error) {
-        loadingIndicator.textContent = `Error loading stories.`;
+        loadingIndicator.textContent = 'Error loading stories. Please try again.';
+        loadingIndicator.setAttribute('role', 'alert'); // interrupts SR immediately
         loadingIndicator.classList.replace('text-blue-600', 'text-red-600');
+        loadingIndicator.classList.remove('hidden');
       }
     }
     searchInput.addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase();
-      const filtered = loadedStories.filter(s =>
-        s.title.toLowerCase().includes(query) || s.by.toLowerCase().includes(query)
-      );
+      const query = e.target.value.toLowerCase().trim();
+      const filtered = query ?
+        loadedStories.filter(s => s.title.toLowerCase().includes(query) || s.by.toLowerCase().includes(query)) :
+        loadedStories;
       renderStories(filtered);
       paginationControls.style.display = query ? 'none' : 'block';
+      // Politely announce result count
+      searchStatus.textContent = query ?
+        `${filtered.length} result${filtered.length !== 1 ? 's' : ''} for "${e.target.value}"` :
+        '';
     });
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('main-nav').addEventListener('click', (e) => {
